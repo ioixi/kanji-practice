@@ -499,6 +499,61 @@
         const KLEE_CANVAS_FONT = "200px 'Klee One', sans-serif";
         const KLEE_FONT_CHECK = "1px 'Klee One'";
 
+        const NARROW_WIDTH_THRESHOLD = 450;
+        const CANVAS_SIZE_DEFAULT = 320;
+        const CANVAS_SIZE_NARROW = 280;
+
+        const SoundFX = (() => {
+            let sounds = null;
+            const ensure = () => {
+                if (!sounds) {
+                    sounds = {
+                        click: new Audio('./sounds/click.mp3'),
+                        correct: new Audio('./sounds/correct.mp3'),
+                        incorrect: new Audio('./sounds/incorrect.mp3')
+                    };
+                }
+                return sounds;
+            };
+            const play = (type) => {
+                const audio = ensure()[type];
+                if (!audio) return;
+                audio.volume = 1;
+                audio.currentTime = 0;
+                audio.play().catch(() => {});
+            };
+            return {
+                playClick: () => play('click'),
+                playCorrect: () => play('correct'),
+                playIncorrect: () => play('incorrect'),
+                unlockJudgeSounds: () => {
+                    ['correct', 'incorrect'].forEach((type) => {
+                        const audio = ensure()[type];
+                        if (!audio) return;
+                        audio.volume = 0.001;
+                        audio.currentTime = 0;
+                        const playPromise = audio.play();
+                        if (playPromise !== undefined) {
+                            playPromise.then(() => {
+                                audio.pause();
+                                audio.currentTime = 0;
+                                audio.volume = 1;
+                            }).catch(() => {
+                                audio.volume = 1;
+                            });
+                        } else {
+                            audio.volume = 1;
+                        }
+                    });
+                }
+            };
+        })();
+
+        const withClickSound = (handler) => (...args) => {
+            SoundFX.playClick();
+            return handler(...args);
+        };
+
         function CharacterCanvas({ index, targetChar, canvasSize, registerClearFn, registerRecognizeFn, status, candidates, errorMessage, showModelAnswer, isHintMode, isLoading, isTracingMode }) {
             const canvasRef = useRef(null);
             const paintCanvasRef = useRef(() => {});
@@ -543,7 +598,7 @@
                 ctx.font = KLEE_CANVAS_FONT;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillText(targetChar, canvasSize / 2, canvasSize / 2 + 10);
+                ctx.fillText(targetChar, canvasSize / 2, canvasSize / 2);
             };
 
             const redrawStrokes = (ctx) => {
@@ -600,7 +655,7 @@
                     const ctx = canvas.getContext('2d');
                     if (ctx) drawBackgroundGrid(ctx);
                 }
-            }, [targetChar, isTracingMode, isHintMode]);
+            }, [targetChar, isTracingMode, isHintMode, canvasSize]);
 
             // Canvas描画・同期ライフサイクル[cite: 2]
             useEffect(() => {
@@ -616,7 +671,7 @@
                         isLocked: status === 'correct' || isExemptUnlearned
                     };
                 });
-            }, [status, targetChar, shouldRenderText]);
+            }, [status, targetChar, shouldRenderText, canvasSize]);
 
             // Klee Oneフォントロード監視（targetChar変更時のみ）[cite: 2]
             useEffect(() => {
@@ -698,6 +753,7 @@
             };
 
             const triggerIndividualClear = () => {
+                SoundFX.playClick();
                 executeClear();
             };
 
@@ -754,7 +810,19 @@
         }
 
         function App() {
-            const canvasSize = 320;
+            const [canvasSize, setCanvasSize] = useState(() =>
+                window.innerWidth < NARROW_WIDTH_THRESHOLD ? CANVAS_SIZE_NARROW : CANVAS_SIZE_DEFAULT
+            );
+
+            useEffect(() => {
+                const updateCanvasSize = () => {
+                    setCanvasSize(
+                        window.innerWidth < NARROW_WIDTH_THRESHOLD ? CANVAS_SIZE_NARROW : CANVAS_SIZE_DEFAULT
+                    );
+                };
+                window.addEventListener('resize', updateCanvasSize);
+                return () => window.removeEventListener('resize', updateCanvasSize);
+            }, []);
 
             const [rawLessonsData, setRawLessonsData] = useState([]);
             const [hierarchyMap, setHierarchyMap] = useState({});
@@ -1074,6 +1142,9 @@
 
             const handleJudge = async () => {
                 if (targetKanjiList.length === 0 || isLoading) return;
+
+                SoundFX.playClick();
+                SoundFX.unlockJudgeSounds();
                 
                 setIsLoading(true);
                 const nextStatuses = [...statuses];
@@ -1165,6 +1236,9 @@
                 const allDone = nextStatuses.every(status => status === 'correct');
                 if (allDone) {
                     setIsAllCorrect(true);
+                    SoundFX.playCorrect();
+                } else if (nextStatuses.some(status => status === 'incorrect')) {
+                    SoundFX.playIncorrect();
                 }
             };
 
@@ -1238,8 +1312,8 @@
                                     <div className="select-wrapper">
                                         <label className="select-label">出題・進捗の範囲指定：</label>
                                         <div className="filter-toolbar">
-                                            <button className="btn-text-link" onClick={() => handleSelectAll(true)}>すべて選択</button>
-                                            <button className="btn-text-link" onClick={() => handleSelectAll(false)}>すべて解除</button>
+                                            <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(true))}>すべて選択</button>
+                                            <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(false))}>すべて解除</button>
                                         </div>
                                         
                                         <div className="filter-container">
@@ -1337,7 +1411,7 @@
                                         </label>
                                     </div>
 
-                                    <button className="btn btn-primary" onClick={startQuiz}>
+                                    <button className="btn btn-primary" onClick={withClickSound(startQuiz)}>
                                         練習をスタート
                                     </button>
                                 </div>
@@ -1353,7 +1427,7 @@
                                                 {isTracingMode && <span style={{ color: '#722ed1', marginLeft: '6px', fontSize: '11px' }}>[なぞり書き・未習免除]</span>}
                                                 {!isTracingMode && enableStrokeCheck && <span style={{ color: '#ff4d4f', marginLeft: '6px', fontSize: '11px' }}>[画数判定中]</span>}
                                             </div>
-                                            <button className="btn-interrupt" onClick={handleInterruptQuiz}>
+                                            <button className="btn-interrupt" onClick={withClickSound(handleInterruptQuiz)}>
                                                 ✕ 中断して戻る
                                             </button>
                                         </div>
@@ -1382,13 +1456,13 @@
                                     <div className="action-container">
                                         {!isAllCorrect ? (
                                             <div className="button-row">
-                                                <button className="btn btn-clear" onClick={handleAllClear} disabled={isLoading}>全部クリア</button>
+                                                <button className="btn btn-clear" onClick={withClickSound(handleAllClear)} disabled={isLoading}>全部クリア</button>
                                                 <button className="btn btn-judge" onClick={handleJudge} disabled={isLoading}>
                                                     {isLoading ? "判別中..." : "判定"}
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button className="btn btn-next" onClick={handleNextQuestion}>
+                                            <button className="btn btn-next" onClick={withClickSound(handleNextQuestion)}>
                                                 {currentQueueIndex + 1 === quizQueue.length ? "結果を見る ➔" : "次の問題へ ➔"}
                                             </button>
                                         )}
@@ -1405,7 +1479,7 @@
                                     <p style={{ color: '#666', marginBottom: '32px' }}>
                                         この調子で正しい画数と形をマスターしていきましょう。
                                     </p>
-                                    <button className="btn-primary" style={{ border: 'none', padding: '12px 0', borderRadius: '6px' }} onClick={() => setAppState('setup')}>
+                                    <button className="btn-primary" style={{ border: 'none', padding: '12px 0', borderRadius: '6px' }} onClick={withClickSound(() => setAppState('setup'))}>
                                         スタート画面に戻る
                                     </button>
                                 </div>
