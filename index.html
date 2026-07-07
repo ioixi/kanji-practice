@@ -61,6 +61,13 @@
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
+
+        @media (max-width: 449px) {
+            .menu-card,
+            .file-input-container {
+                width: calc(100% - 32px);
+            }
+        }
         .menu-title {
             font-size: 18px;
             font-weight: bold;
@@ -510,6 +517,19 @@
         const CANVAS_SIZE_DEFAULT = 320;
         const CANVAS_SIZE_NARROW = 280;
 
+        const preloadKanjiGlyphs = (kanjiString) => {
+            if (!kanjiString || !document.fonts) return;
+            const uniqueChars = [...new Set(kanjiString.split(""))];
+            (async () => {
+                try {
+                    await document.fonts.ready;
+                    await Promise.all(
+                        uniqueChars.map((char) => document.fonts.load(KLEE_CANVAS_FONT, char))
+                    );
+                } catch (_) { /* Font Loading API 非対応環境では隠し要素プリロードに委ねる */ }
+            })();
+        };
+
         const SoundFX = (() => {
             let sounds = null;
             const ensure = () => {
@@ -522,6 +542,7 @@
                 }
                 return sounds;
             };
+            ensure();
             const play = (type) => {
                 const audio = ensure()[type];
                 if (!audio) return;
@@ -531,6 +552,7 @@
             };
             return {
                 playClick: () => play('click'),
+                playClickDeferred: () => { queueMicrotask(() => play('click')); },
                 playCorrect: () => play('correct'),
                 playIncorrect: () => play('incorrect'),
                 unlockJudgeSounds: () => {
@@ -557,8 +579,9 @@
         })();
 
         const withClickSound = (handler) => (...args) => {
-            SoundFX.playClick();
-            return handler(...args);
+            const result = handler(...args);
+            SoundFX.playClickDeferred();
+            return result;
         };
 
         function CharacterCanvas({ index, targetChar, canvasSize, registerClearFn, registerRecognizeFn, status, candidates, errorMessage, showModelAnswer, isHintMode, isLoading, isTracingMode }) {
@@ -788,8 +811,8 @@
             };
 
             const triggerIndividualClear = () => {
-                SoundFX.playClick();
                 executeClear();
+                SoundFX.playClickDeferred();
             };
 
             let wrapperClass = "canvas-wrapper";
@@ -870,6 +893,7 @@
             const [isKanjiListEmpty, setIsKanjiListEmpty] = useState(false);
 
             const [excelKanjiMasterDb, setExcelKanjiMasterDb] = useState({});
+            const [allLoadedKanjis, setAllLoadedKanjis] = useState("");
 
             const [appState, setAppState] = useState('setup');
             const [quizQueue, setQuizQueue] = useState([]);
@@ -892,6 +916,7 @@
                 const allKeysSet = new Set();
                 let hasAtLeastOneKanji = false;
                 const masterDb = {};
+                const allKanjiSet = new Set();
 
                 jsonRows.forEach((row) => {
                     if (row["課"] === undefined || row["課"] === "") return;
@@ -907,9 +932,15 @@
                     tempMap[lessonNum].add(sectionVal);
                     allKeysSet.add(`${lessonNum}-${sectionVal}`);
 
+                    const answerKanji = row["解答部分_1"] || row["語彙_漢字"] || "";
+                    if (answerKanji) {
+                        answerKanji.replace(/[\u3041-\u3096]/g, "").split("").forEach((char) => allKanjiSet.add(char));
+                    }
+
                     if (row["学習漢字"] && String(row["学習漢字"]).trim().length > 0) {
                         hasAtLeastOneKanji = true;
                         const kanjiChars = String(row["学習漢字"]).trim().split("");
+                        kanjiChars.forEach((char) => allKanjiSet.add(char));
                         const rawStrokeVal = row["画数"];
 
                         if (rawStrokeVal !== undefined && rawStrokeVal !== null && String(rawStrokeVal).trim() !== "") {
@@ -940,6 +971,10 @@
                         return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
                     });
                 });
+
+                const allLoadedKanjisStr = [...allKanjiSet].join("");
+                setAllLoadedKanjis(allLoadedKanjisStr);
+                preloadKanjiGlyphs(allLoadedKanjisStr);
 
                 setHierarchyMap(sortedHierarchy);
                 setCheckedRanges(allKeysSet); 
@@ -1178,8 +1213,8 @@
             const handleJudge = async () => {
                 if (targetKanjiList.length === 0 || isLoading) return;
 
-                SoundFX.playClick();
                 SoundFX.unlockJudgeSounds();
+                SoundFX.playClickDeferred();
                 
                 setIsLoading(true);
                 const nextStatuses = [...statuses];
@@ -1327,9 +1362,9 @@
             return (
                 <React.Fragment>
                     {/* 【防衛ライン・復元】：ハイフンタイポ修正済みのリアルタイム・フォントプリロード要素 */}
-                    {/* 出題漢字が遷移した瞬間に全グリフをKlee Oneとしてブラウザに事前認識させ、UD教科書体への化けを根絶する */}
+                    {/* Excel読込時に全漢字（学習漢字＋解答漢字）を設定画面から先読みし、スタート直後のUD教科書体化けを遮断 */}
                     <div style={{ fontFamily: "'Klee One'", position: 'absolute', left: '-9999px', top: '-9999px', visibility: 'hidden', opacity: 0, pointerEvents: 'none' }}>
-                        {targetKanjiList.join("")}漢字手書き教科書体事前グリフ展開要素
+                        {allLoadedKanjis}{targetKanjiList.join("")}漢字手書き教科書体事前グリフ展開要素
                     </div>
 
                     <div className="file-input-container">
