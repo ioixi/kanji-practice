@@ -514,21 +514,25 @@
             "大": [3], "小": [3], "長": [8], "安": [6], "多": [6], "少": [4], "正": [5], "凸": [5], "凹": [5]
         };
 
-        const KLEE_CANVAS_FONT = "200px 'Klee One', sans-serif";
-        const KLEE_FONT_CHECK = "1px 'Klee One'";
+        const KLEE_FONT_FAMILY = "'Klee One', sans-serif";
 
         const NARROW_WIDTH_THRESHOLD = 450;
         const CANVAS_SIZE_DEFAULT = 320;
         const CANVAS_SIZE_NARROW = 280;
+        const HINT_FONT_RATIO = 0.72;
+
+        const getKleeCanvasFont = (canvasSize) =>
+            `${Math.round(canvasSize * HINT_FONT_RATIO)}px ${KLEE_FONT_FAMILY}`;
 
         const preloadKanjiGlyphs = (kanjiString) => {
             if (!kanjiString || !document.fonts) return;
             const uniqueChars = [...new Set(kanjiString.split(""))];
+            const preloadFont = getKleeCanvasFont(CANVAS_SIZE_DEFAULT);
             (async () => {
                 try {
                     await document.fonts.ready;
                     await Promise.all(
-                        uniqueChars.map((char) => document.fonts.load(KLEE_CANVAS_FONT, char))
+                        uniqueChars.map((char) => document.fonts.load(preloadFont, char))
                     );
                 } catch (_) { /* Font Loading API 非対応環境では隠し要素プリロードに委ねる */ }
             })();
@@ -629,7 +633,7 @@
                 } else {
                     ctx.fillStyle = 'rgba(215, 215, 215, 0.8)';
                 }
-                ctx.font = KLEE_CANVAS_FONT;
+                ctx.font = getKleeCanvasFont(canvasSize);
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillText(targetChar, canvasSize / 2, canvasSize / 2);
@@ -711,9 +715,10 @@
             useEffect(() => {
                 if (!document.fonts) return;
 
+                const hintFont = getKleeCanvasFont(canvasSize);
                 const fontReady =
-                    document.fonts.check(KLEE_FONT_CHECK) &&
-                    (!targetChar || document.fonts.check(KLEE_FONT_CHECK, targetChar));
+                    document.fonts.check(hintFont) &&
+                    (!targetChar || document.fonts.check(hintFont, targetChar));
 
                 if (fontReady) return;
 
@@ -722,14 +727,14 @@
                     try {
                         await document.fonts.ready;
                         if (targetChar) {
-                            await document.fonts.load(KLEE_CANVAS_FONT, targetChar);
+                            await document.fonts.load(hintFont, targetChar);
                         }
                     } catch (_) { /* Font Loading API 非対応環境では初回描画のまま */ }
                     if (!cancelled) paintCanvasRef.current();
                 })();
 
                 return () => { cancelled = true; };
-            }, [targetChar]);
+            }, [targetChar, canvasSize]);
 
             // iOS Safari: passive:false で touchstart の preventDefault を有効化し長押し選択を遮断
             useEffect(() => {
