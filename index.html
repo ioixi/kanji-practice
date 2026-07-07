@@ -89,6 +89,31 @@
             display: block;
             margin-bottom: 6px;
         }
+        .select-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .select-label-row .select-label {
+            margin-bottom: 0;
+        }
+        .btn-sound-toggle {
+            background: none;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            color: #555555;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 4px 10px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .btn-sound-toggle:active {
+            background-color: #f5f5f5;
+        }
         .custom-select {
             font-size: 16px;
             padding: 8px 12px;
@@ -538,8 +563,15 @@
             })();
         };
 
+        const SOUND_MUTED_STORAGE_KEY = 'kanji-app-sound-muted';
+
         const SoundFX = (() => {
             let sounds = null;
+            let isMuted = false;
+            try {
+                isMuted = localStorage.getItem(SOUND_MUTED_STORAGE_KEY) === 'true';
+            } catch (_) { /* private browsing等 */ }
+
             const ensure = () => {
                 if (!sounds) {
                     sounds = {
@@ -552,6 +584,7 @@
             };
             ensure();
             const play = (type) => {
+                if (isMuted) return;
                 const audio = ensure()[type];
                 if (!audio) return;
                 audio.volume = 1;
@@ -559,6 +592,13 @@
                 audio.play().catch(() => {});
             };
             return {
+                getMuted: () => isMuted,
+                setMuted: (value) => {
+                    isMuted = !!value;
+                    try {
+                        localStorage.setItem(SOUND_MUTED_STORAGE_KEY, isMuted ? 'true' : 'false');
+                    } catch (_) { /* storage unavailable */ }
+                },
                 playClick: () => play('click'),
                 playClickDeferred: () => { queueMicrotask(() => play('click')); },
                 playCorrect: () => play('correct'),
@@ -900,6 +940,7 @@
             const [isTracingMode, setIsTracingMode] = useState(true); 
             const [selectedCount, setSelectedCount] = useState(5);
             const [isKanjiListEmpty, setIsKanjiListEmpty] = useState(false);
+            const [isSoundMuted, setIsSoundMuted] = useState(() => SoundFX.getMuted());
 
             const [excelKanjiMasterDb, setExcelKanjiMasterDb] = useState({});
             const [allLoadedKanjis, setAllLoadedKanjis] = useState("");
@@ -1030,6 +1071,12 @@
                     }
                 });
                 setCheckedRanges(nextChecked);
+            };
+
+            const handleToggleSound = () => {
+                const nextMuted = !isSoundMuted;
+                SoundFX.setMuted(nextMuted);
+                setIsSoundMuted(nextMuted);
             };
 
             const handleSelectAll = (status) => {
@@ -1389,7 +1436,17 @@
                             {appState === 'setup' && (
                                 <div className="menu-card menu-card--setup">
                                     <div className="select-wrapper">
-                                        <label className="select-label">出題・進捗の範囲指定：</label>
+                                        <div className="select-label-row">
+                                            <label className="select-label">出題・進捗の範囲指定：</label>
+                                            <button
+                                                type="button"
+                                                className="btn-sound-toggle"
+                                                onClick={withClickSound(handleToggleSound)}
+                                                aria-label={isSoundMuted ? '効果音 OFF' : '効果音 ON'}
+                                            >
+                                                {isSoundMuted ? 'OFF' : 'ON'}
+                                            </button>
+                                        </div>
                                         <div className="filter-toolbar">
                                             <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(true))}>すべて選択</button>
                                             <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(false))}>すべて解除</button>
