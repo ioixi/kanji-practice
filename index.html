@@ -68,6 +68,10 @@
                 width: calc(100% - 32px);
             }
         }
+        .menu-card--setup {
+            padding-top: 16px;
+            margin-top: 12px;
+        }
         .menu-title {
             font-size: 18px;
             font-weight: bold;
@@ -1367,18 +1371,18 @@
                         {allLoadedKanjis}{targetKanjiList.join("")}漢字手書き教科書体事前グリフ展開要素
                     </div>
 
-                    <div className="file-input-container">
-                        <label className="file-label">【ステップ1】テストデータを読み込んでください</label>
-                        <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={isLoading} />
-                    </div>
+                    {(rawLessonsData.length === 0 || appState === 'setup') && (
+                        <div className="file-input-container">
+                            <label className="file-label">【ステップ1】テストデータを読み込んでください</label>
+                            <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={isLoading} />
+                        </div>
+                    )}
 
                     {rawLessonsData.length > 0 && (
                         <React.Fragment>
                             {/* 1. 設定・スタート画面 */}
                             {appState === 'setup' && (
-                                <div className="menu-card">
-                                    <h2 className="menu-title">漢字書き取り練習の設定 (v0.9.22)</h2>
-                                    
+                                <div className="menu-card menu-card--setup">
                                     <div className="select-wrapper">
                                         <label className="select-label">出題・進捗の範囲指定：</label>
                                         <div className="filter-toolbar">
