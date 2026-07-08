@@ -300,6 +300,30 @@
             position: relative;
         }
 
+        .character-canvas-grid {
+            width: 100%;
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .character-canvas-grid .character-block {
+            margin-top: 0;
+        }
+
+        @media (min-width: 450px) {
+            .character-canvas-grid {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 16px 24px;
+                max-width: 960px;
+                box-sizing: border-box;
+            }
+        }
+
         .label-row {
             display: flex;
             align-items: center;
@@ -545,9 +569,25 @@
         const KLEE_FONT_FAMILY = "'Klee One', sans-serif";
 
         const NARROW_WIDTH_THRESHOLD = 450;
-        const CANVAS_SIZE_DEFAULT = 320;
+        const PC_WIDTH_THRESHOLD = 960;
         const CANVAS_SIZE_NARROW = 280;
+        const CANVAS_SIZE_MIN_TABLET = 320;
+        const CANVAS_SIZE_MAX = 420;
+        const TABLET_WIDTH_SCALE = 0.45;
         const HINT_FONT_RATIO = 0.72;
+
+        const computeCanvasSize = (viewportWidth) => {
+            if (viewportWidth < NARROW_WIDTH_THRESHOLD) {
+                return CANVAS_SIZE_NARROW;
+            }
+            if (viewportWidth >= PC_WIDTH_THRESHOLD) {
+                return CANVAS_SIZE_MAX;
+            }
+            return Math.min(
+                CANVAS_SIZE_MAX,
+                Math.max(CANVAS_SIZE_MIN_TABLET, Math.round(viewportWidth * TABLET_WIDTH_SCALE))
+            );
+        };
 
         const getKleeCanvasFont = (canvasSize) =>
             `${Math.round(canvasSize * HINT_FONT_RATIO)}px ${KLEE_FONT_FAMILY}`;
@@ -555,7 +595,7 @@
         const preloadKanjiGlyphs = (kanjiString) => {
             if (!kanjiString || !document.fonts) return;
             const uniqueChars = [...new Set(kanjiString.split(""))];
-            const preloadFont = getKleeCanvasFont(CANVAS_SIZE_DEFAULT);
+            const preloadFont = getKleeCanvasFont(CANVAS_SIZE_MAX);
             (async () => {
                 try {
                     await document.fonts.ready;
@@ -920,15 +960,11 @@
         }
 
         function App() {
-            const [canvasSize, setCanvasSize] = useState(() =>
-                window.innerWidth < NARROW_WIDTH_THRESHOLD ? CANVAS_SIZE_NARROW : CANVAS_SIZE_DEFAULT
-            );
+            const [canvasSize, setCanvasSize] = useState(() => computeCanvasSize(window.innerWidth));
 
             useEffect(() => {
                 const updateCanvasSize = () => {
-                    setCanvasSize(
-                        window.innerWidth < NARROW_WIDTH_THRESHOLD ? CANVAS_SIZE_NARROW : CANVAS_SIZE_DEFAULT
-                    );
+                    setCanvasSize(computeCanvasSize(window.innerWidth));
                 };
                 window.addEventListener('resize', updateCanvasSize);
                 return () => window.removeEventListener('resize', updateCanvasSize);
@@ -1574,23 +1610,25 @@
                                         {isAllCorrect && <div className="success-message">すばらしい！正解です！🎉</div>}
                                     </div>
 
-                                    {targetKanjiList.map((char, index) => (
-                                        <CharacterCanvas 
-                                            key={`${char}-${index}-${currentQueueIndex}`}
-                                            index={index}
-                                            targetChar={char}
-                                            canvasSize={canvasSize}
-                                            status={statuses[index]}
-                                            candidates={allCandidates[index]}
-                                            errorMessage={errorMessages[index]} 
-                                            showModelAnswer={isAllCorrect}
-                                            isHintMode={hintFlags[index]}
-                                            isTracingMode={isTracingMode}
-                                            isLoading={isLoading}
-                                            registerClearFn={handleRegisterClearFn}
-                                            registerRecognizeFn={handleRegisterRecognizeFn}
-                                        />
-                                    ))}
+                                    <div className="character-canvas-grid">
+                                        {targetKanjiList.map((char, index) => (
+                                            <CharacterCanvas 
+                                                key={`${char}-${index}-${currentQueueIndex}`}
+                                                index={index}
+                                                targetChar={char}
+                                                canvasSize={canvasSize}
+                                                status={statuses[index]}
+                                                candidates={allCandidates[index]}
+                                                errorMessage={errorMessages[index]} 
+                                                showModelAnswer={isAllCorrect}
+                                                isHintMode={hintFlags[index]}
+                                                isTracingMode={isTracingMode}
+                                                isLoading={isLoading}
+                                                registerClearFn={handleRegisterClearFn}
+                                                registerRecognizeFn={handleRegisterRecognizeFn}
+                                            />
+                                        ))}
+                                    </div>
 
                                     <div className="action-container">
                                         {!isAllCorrect ? (
