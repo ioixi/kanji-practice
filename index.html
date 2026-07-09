@@ -638,14 +638,39 @@
                 return sounds;
             };
             ensure();
+
             const play = (type) => {
                 if (isMuted) return;
                 const audio = ensure()[type];
                 if (!audio) return;
+                audio.pause();
+                audio.muted = false;
                 audio.volume = 1;
                 audio.currentTime = 0;
-                audio.play().catch(() => {});
+                audio.play().catch((err) => console.warn(`[SoundFX] ${type} の再生に失敗:`, err));
             };
+
+            const unlockAudioElement = (audio) => new Promise((resolve) => {
+                audio.pause();
+                audio.muted = true;
+                audio.currentTime = 0;
+                const playPromise = audio.play();
+                if (!playPromise) {
+                    audio.muted = false;
+                    resolve();
+                    return;
+                }
+                playPromise.then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.muted = false;
+                    resolve();
+                }).catch(() => {
+                    audio.muted = false;
+                    resolve();
+                });
+            });
+
             return {
                 getMuted: () => isMuted,
                 setMuted: (value) => {
@@ -658,25 +683,11 @@
                 playClickDeferred: () => { queueMicrotask(() => play('click')); },
                 playCorrect: () => play('correct'),
                 playIncorrect: () => play('incorrect'),
-                unlockJudgeSounds: () => {
-                    ['correct', 'incorrect'].forEach((type) => {
-                        const audio = ensure()[type];
-                        if (!audio) return;
-                        audio.volume = 0.001;
-                        audio.currentTime = 0;
-                        const playPromise = audio.play();
-                        if (playPromise !== undefined) {
-                            playPromise.then(() => {
-                                audio.pause();
-                                audio.currentTime = 0;
-                                audio.volume = 1;
-                            }).catch(() => {
-                                audio.volume = 1;
-                            });
-                        } else {
-                            audio.volume = 1;
-                        }
-                    });
+                unlockJudgeSounds: async () => {
+                    if (isMuted) return;
+                    const { correct, incorrect } = ensure();
+                    await unlockAudioElement(correct);
+                    await unlockAudioElement(incorrect);
                 }
             };
         })();
@@ -1348,9 +1359,9 @@
             const handleJudge = async () => {
                 if (targetKanjiList.length === 0 || isLoading) return;
 
-                SoundFX.unlockJudgeSounds();
-                SoundFX.playClickDeferred();
-                
+                await SoundFX.unlockJudgeSounds();
+                SoundFX.playClick();
+
                 setIsLoading(true);
                 const nextStatuses = [...statuses];
                 const nextAllCandidates = [...allCandidates];
