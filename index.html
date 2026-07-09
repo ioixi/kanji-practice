@@ -630,7 +630,6 @@
             const ensure = () => {
                 if (!sounds) {
                     sounds = {
-                        click: new Audio('./sounds/click.mp3'),
                         correct: new Audio('./sounds/correct.mp3'),
                         incorrect: new Audio('./sounds/incorrect.mp3')
                     };
@@ -679,8 +678,6 @@
                         localStorage.setItem(SOUND_MUTED_STORAGE_KEY, isMuted ? 'true' : 'false');
                     } catch (_) { /* storage unavailable */ }
                 },
-                playClick: () => play('click'),
-                playClickDeferred: () => { queueMicrotask(() => play('click')); },
                 playCorrect: () => play('correct'),
                 playIncorrect: () => play('incorrect'),
                 unlockJudgeSounds: async () => {
@@ -691,12 +688,6 @@
                 }
             };
         })();
-
-        const withClickSound = (handler) => (...args) => {
-            const result = handler(...args);
-            SoundFX.playClickDeferred();
-            return result;
-        };
 
         function CharacterCanvas({ index, targetChar, canvasSize, registerClearFn, registerRecognizeFn, status, candidates, errorMessage, showModelAnswer, isHintMode, isLoading, isTracingMode }) {
             const canvasRef = useRef(null);
@@ -927,7 +918,6 @@
 
             const triggerIndividualClear = () => {
                 executeClear();
-                SoundFX.playClickDeferred();
             };
 
             let wrapperClass = "canvas-wrapper";
@@ -1359,10 +1349,9 @@
             const handleJudge = async () => {
                 if (targetKanjiList.length === 0 || isLoading) return;
 
-                await SoundFX.unlockJudgeSounds();
-                SoundFX.playClick();
-
                 setIsLoading(true);
+                await SoundFX.unlockJudgeSounds();
+
                 const nextStatuses = [...statuses];
                 const nextAllCandidates = [...allCandidates];
                 const nextErrorMessages = [...errorMessages]; 
@@ -1531,15 +1520,15 @@
                                             <button
                                                 type="button"
                                                 className="btn-sound-toggle"
-                                                onClick={withClickSound(handleToggleSound)}
+                                                onClick={handleToggleSound}
                                                 aria-label={isSoundMuted ? '効果音 OFF' : '効果音 ON'}
                                             >
                                                 {isSoundMuted ? '🔇 OFF' : '🔊 ON'}
                                             </button>
                                         </div>
                                         <div className="filter-toolbar">
-                                            <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(true))}>すべて選択</button>
-                                            <button className="btn-text-link" onClick={withClickSound(() => handleSelectAll(false))}>すべて解除</button>
+                                            <button className="btn-text-link" onClick={() => handleSelectAll(true)}>すべて選択</button>
+                                            <button className="btn-text-link" onClick={() => handleSelectAll(false)}>すべて解除</button>
                                         </div>
                                         
                                         <div className="filter-container">
@@ -1637,7 +1626,7 @@
                                         </label>
                                     </div>
 
-                                    <button className="btn btn-primary" onClick={withClickSound(startQuiz)}>
+                                    <button className="btn btn-primary" onClick={startQuiz}>
                                         練習をスタート
                                     </button>
                                 </div>
@@ -1653,7 +1642,7 @@
                                                 {isTracingMode && <span style={{ color: '#722ed1', marginLeft: '6px', fontSize: '11px' }}>[なぞり書き・未習免除]</span>}
                                                 {!isTracingMode && enableStrokeCheck && <span style={{ color: '#ff4d4f', marginLeft: '6px', fontSize: '11px' }}>[画数判定中]</span>}
                                             </div>
-                                            <button className="btn-interrupt" onClick={withClickSound(handleInterruptQuiz)}>
+                                            <button className="btn-interrupt" onClick={handleInterruptQuiz}>
                                                 ✕ 中断して戻る
                                             </button>
                                         </div>
@@ -1684,13 +1673,13 @@
                                     <div className="action-container">
                                         {!isAllCorrect ? (
                                             <div className="button-row">
-                                                <button className="btn btn-clear" onClick={withClickSound(handleAllClear)} disabled={isLoading}>全部クリア</button>
+                                                <button className="btn btn-clear" onClick={handleAllClear} disabled={isLoading}>全部クリア</button>
                                                 <button className="btn btn-judge" onClick={handleJudge} disabled={isLoading}>
                                                     {isLoading ? "判別中..." : "判定"}
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button className="btn btn-next" onClick={withClickSound(handleNextQuestion)}>
+                                            <button className="btn btn-next" onClick={handleNextQuestion}>
                                                 {currentQueueIndex + 1 === quizQueue.length ? "結果を見る ➔" : "次の問題へ ➔"}
                                             </button>
                                         )}
@@ -1707,7 +1696,7 @@
                                     <p style={{ color: '#666', marginBottom: '32px' }}>
                                         この調子で正しい画数と形をマスターしていきましょう。
                                     </p>
-                                    <button className="btn-primary" style={{ border: 'none', padding: '12px 0', borderRadius: '6px' }} onClick={withClickSound(() => setAppState('setup'))}>
+                                    <button className="btn-primary" style={{ border: 'none', padding: '12px 0', borderRadius: '6px' }} onClick={() => setAppState('setup')}>
                                         スタート画面に戻る
                                     </button>
                                 </div>
